@@ -14,6 +14,7 @@ import numpy as np
 
 RANDOM_STATE = 33
 
+
 def one_epoch_test():
     train_loss_av = 0
     model.train()
@@ -38,7 +39,7 @@ def one_epoch_test():
 
 
 if __name__ == "__main__":
-    grid_encoded_data, grades_tensor, grades = pre_process.pull_in_data()
+    grid_encoded_data, grades_tensor, grades = pre_process.pull_in_data(encoding='multi')
 
     X_train, X_test, y_train, y_test = train_test_split(grid_encoded_data,
                                                         grades_tensor,
@@ -50,7 +51,7 @@ if __name__ == "__main__":
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = models.OneChannelCNNModel(10, len(grades))
+    model = models.MultiChannelCNN(2, 10, len(grades))
 
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -85,9 +86,9 @@ if __name__ == "__main__":
 
         print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av}")
 
-    SAVE_PATH = Path('saved_models')
+    SAVE_PATH = Path('/home/alex/PycharmProjects/Moonboard-ML/saved_models')
     SAVE_PATH.mkdir(parents=True, exist_ok=True)
-    MODEL_NAME = 'one_channel_cnn'
+    MODEL_NAME = 'multi_channel_cnn'
 
     torch.save(model.state_dict(), f=SAVE_PATH / MODEL_NAME)
 

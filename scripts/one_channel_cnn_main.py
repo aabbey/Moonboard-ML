@@ -14,6 +14,7 @@ import numpy as np
 
 RANDOM_STATE = 33
 
+
 def one_epoch_test():
     train_loss_av = 0
     model.train()
@@ -85,7 +86,7 @@ if __name__ == "__main__":
 
         print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av}")
 
-    SAVE_PATH = Path('saved_models')
+    SAVE_PATH = Path('/home/alex/PycharmProjects/Moonboard-ML/saved_models')
     SAVE_PATH.mkdir(parents=True, exist_ok=True)
     MODEL_NAME = 'one_channel_cnn'
 
