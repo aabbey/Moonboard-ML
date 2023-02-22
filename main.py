@@ -8,36 +8,20 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 import models
 import pre_process
+from hold_embeddings import hold_quality, hold_angles
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
 RANDOM_STATE = 33
 
-def one_epoch_test():
-    train_loss_av = 0
-    model.train()
-    for X, y in train_dataloader:
-        preds = model(X)
-        loss = loss_fn(preds, y)
-        train_loss_av += loss
-    train_loss_av /= len(train_dataloader)
-    test_loss_av = 0
-    test_acc_av = 0
-    model.eval()
-    with torch.inference_mode():
-        for X, y in test_dataloader:
-            test_preds = model(X)
-            loss = loss_fn(test_preds, y)
-            test_loss_av += loss
-            test_acc_av += acc_fn(test_preds.argmax(dim=1), y)
-        test_loss_av /= len(test_dataloader)
-        test_acc_av /= len(test_dataloader)
-
-    print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av}")
-
 
 if __name__ == "__main__":
+    hold_embeddings = pre_process.create_one_hot_per_hold()
+    print(hold_embeddings.shape)
+    print(hold_embeddings[:, 17, 10])
+
+    sys.exit()
     grid_encoded_data, grades_tensor, grades = pre_process.pull_in_data()
 
     X_train, X_test, y_train, y_test = train_test_split(grid_encoded_data,

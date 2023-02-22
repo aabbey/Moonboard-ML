@@ -62,3 +62,75 @@ class MultiChannelCNN(nn.Module):
         )
         return self.classifier(x)
 
+
+class OneHotChannelCNN(nn.Module):
+    def __init__(self, in_channels, hidden, out_shape):
+        super().__init__()
+        self.conv_block_1 = nn.Sequential(
+            nn.Conv2d(in_channels, hidden, kernel_size=3, padding='same'),
+            nn.BatchNorm2d(hidden),
+            nn.ReLU(),
+            nn.Conv2d(hidden, hidden, 3, padding='same'),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.conv_block_2 = nn.Sequential(
+            nn.Conv2d(hidden, hidden, kernel_size=3, padding='same'),
+            nn.BatchNorm2d(hidden),
+            nn.ReLU(),
+            nn.Conv2d(hidden, hidden, 3, padding='same'),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(hidden * 4 * 2, out_shape)
+        )
+
+    def forward(self, x):
+        return self.classifier(
+            self.conv_block_2(
+                self.conv_block_1(x)
+            )
+        )
+
+
+class HoldEncoder(nn.Module):
+    def __init__(self, latent_dim):
+        super().__init__()
+        self.conv_block_1 = nn.Sequential(
+            nn.Conv2d(198, 198, 3, 1, padding='same'),
+            nn.BatchNorm2d(198),
+            nn.ReLU(),
+            nn.Conv2d(198, 198, 3, 1, padding='same'),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.conv_block_2 = nn.Sequential(
+            nn.Conv2d(198, 198, 3, 1, padding='same'),
+            nn.BatchNorm2d(198),
+            nn.ReLU(),
+            nn.Conv2d(198, 198, 3, 1, padding='same'),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.dense = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(198*4*2, latent_dim),
+            nn.Softmax()
+        )
+
+    def forward(self, x):
+        return self.dense(
+            self.conv_block_2(
+                self.conv_block_1(x)
+            )
+        )
+
+
+class HoldDecoder(nn.Module):
+    def __init__(self, latent_dim):
+        super().__init__()
+        self.pipe = nn.Sequential(
+            nn.ConvTranspose2d(latent_dim)  # learn this
+        )

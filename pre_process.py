@@ -18,7 +18,23 @@ RANDOM_STATE = 33
 PROBLEMS_PATH = '/home/alex/PycharmProjects/Moonboard-ML/problems.json'
 
 
-def pull_in_data(size=59787, encoding='single'):
+def create_one_hot_per_hold():
+    grid = torch.zeros(198, 18, 11)
+    for vec in range(198):
+        one_hot_embedding = torch.zeros(198)
+        one_hot_embedding[vec] = 1.
+        x = vec % 11
+        y = int(np.floor(vec / 11))
+        grid[:, y, x] = one_hot_embedding
+    return grid
+
+
+def create_hold_embedding_vectors(hold_quality, hold_direction):
+    normalized = nn.functional.normalize(hold_direction, dim=0)
+    return normalized * hold_quality
+
+
+def pull_in_data(size=59787):
     with open(PROBLEMS_PATH) as p:
         d = json.load(p)  # dict of total, data
 
@@ -33,26 +49,12 @@ def pull_in_data(size=59787, encoding='single'):
 
     grades_tensor = torch.tensor(data_df['grade'][:size].apply(lambda x: grades.index(x)), dtype=torch.long)
 
-    if encoding == 'single':
-        grid_encoded_data = []
-        for prob in d['data'][:size]:
-            layout = torch.zeros(18, 11, dtype=int)
-            for hold in prob['moves']:
-                x, y = hold['description'][0], hold['description'][1]
-                x, y = ord(x.upper()) - 65, int(y) - 1
-                layout[17 - y, x] = 1
-            grid_encoded_data.append(layout)
-
-        grid_encoded_data = torch.stack(grid_encoded_data).type(
-            'torch.FloatTensor').unsqueeze(dim=1)  # tensor shape (59787, 1, 18, 11) num_samples by moonboard grid shape
-
-    else:
-        grid_encoded_data = torch.zeros(size, 2, 18, 11)
-        for i, prob in enumerate(d['data'][:size]):
-            for hold in prob['moves']:
-                x, y = hold['description'][0], hold['description'][1]
-                x, y = ord(x.upper()) - 65, int(y) - 1
-                grid_encoded_data[i, :, x, y] = MANUAL_HOLD_EMBEDDINGS[:, x, y]
+    grid_encoded_data = torch.zeros(size, 1, 18, 11)
+    for i, prob in enumerate(d['data'][:size]):
+        for hold in prob['moves']:
+            x, y = hold['description'][0], hold['description'][1:]
+            x, y = ord(x.upper()) - 65, int(y) - 1
+            grid_encoded_data[i, 0, 17-y, x] = 1.  # tensor shape (59787, 1, 18, 11) num_samples by moonboard grid shape
 
     return grid_encoded_data, grades_tensor, grades
 

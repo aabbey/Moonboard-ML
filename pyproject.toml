@@ -10,6 +10,12 @@ packages = [{include = "moonboard_ml"}]
 python = "^3.10"
 numpy = "^1.24.2"
 pandas = "^1.5.3"
+torch = "^1.13.1"
+torchmetrics = "^0.11.1"
+scikit-learn = "^1.2.1"
+matplotlib = "^3.7.0"
+tqdm = "^4.64.1"
+mlxtend = "^0.21.0"
 
 
 [build-system]
