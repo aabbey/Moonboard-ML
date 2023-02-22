@@ -132,5 +132,5 @@ class HoldDecoder(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
         self.pipe = nn.Sequential(
-            nn.ConvTranspose2d(latent_dim)  # learn this
+            # nn.ConvTranspose2d(latent_dim)  # learn this
         )
