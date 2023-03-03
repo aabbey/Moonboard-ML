@@ -17,12 +17,15 @@ RANDOM_STATE = 33
 
 
 if __name__ == "__main__":
-    hold_embeddings = pre_process.create_one_hot_per_hold()
-    print(hold_embeddings.shape)
-    print(hold_embeddings[:, 17, 10])
+    HOLD_EMBEDDINGS = pre_process.create_one_hot_per_hold()
+
+    df = pre_process.pull_in_data(300, True)
+    print(df[df['userGrade'] != df['grade']].to_string())
+
+
+
 
     sys.exit()
-    grid_encoded_data, grades_tensor, grades = pre_process.pull_in_data()
 
     X_train, X_test, y_train, y_test = train_test_split(grid_encoded_data,
                                                         grades_tensor,

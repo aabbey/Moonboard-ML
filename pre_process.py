@@ -34,12 +34,14 @@ def create_hold_embedding_vectors(hold_quality, hold_direction):
     return normalized * hold_quality
 
 
-def pull_in_data(size=59787):
+def pull_in_data(size=59787, only_df=False):
     with open(PROBLEMS_PATH) as p:
         d = json.load(p)  # dict of total, data
 
     boulder_data = d['data']  # list of dicts, info for all problems in dataset
-    data_df = pd.DataFrame(boulder_data)  # dataframe for all the info about the boulders
+    data_df = pd.DataFrame(boulder_data[:size])  # dataframe for all the info about the boulders
+    if only_df:
+        return data_df
 
     grades = []
     for grade in data_df["grade"]:
