@@ -40,6 +40,12 @@ def one_epoch_test():
     print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av}")
 
 
+def off_by_one_acc_fn(y_pred, y_true):
+    y_off_by_one_true = torch.stack([y_true-1, y_true, y_true+1])
+    tot_true = sum(y_pred == y_off_by_one_true)
+    return tot_true.item() / len(y_pred)
+
+
 if __name__ == "__main__":
     HOLD_EMBEDDINGS = pre_process.create_one_hot_per_hold()
 
@@ -87,6 +93,8 @@ if __name__ == "__main__":
                 loss = loss_fn(test_preds, y)
                 test_loss_av += loss
                 test_acc_av += acc_fn(test_preds.argmax(dim=1), y)
+                test_obo_acc = off_by_one_acc_fn(test_preds.argmax(dim=1), y)
+                print(f"Test off by one accuracy : {test_obo_acc} | Test accuracy : {acc_fn(test_preds.argmax(dim=1), y)}")
             test_loss_av /= len(test_dataloader)
             test_acc_av /= len(test_dataloader)
 
