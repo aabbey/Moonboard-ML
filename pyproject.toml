@@ -16,6 +16,7 @@ scikit-learn = "^1.2.1"
 matplotlib = "^3.7.0"
 tqdm = "^4.64.1"
 mlxtend = "^0.21.0"
+torchsummary = "^1.5.1"
 
 
 [build-system]

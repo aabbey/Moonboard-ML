@@ -38,6 +38,12 @@ def one_epoch_test():
     print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av}")
 
 
+def off_by_one_acc_fn(y_pred, y_true):
+    y_off_by_one_true = torch.stack([y_true-1, y_true, y_true+1])
+    tot_true = torch.sum(y_pred == y_off_by_one_true)
+    return tot_true.item() / len(y_pred)
+
+
 if __name__ == "__main__":
     grid_encoded_data, grades_tensor, grades = pre_process.pull_in_data()
 
@@ -74,17 +80,20 @@ if __name__ == "__main__":
         train_loss_av /= len(train_dataloader)
         test_loss_av = 0
         test_acc_av = 0
+        test_obo_av = 0
         model.eval()
         with torch.inference_mode():
             for X, y in test_dataloader:
                 test_preds = model(X)
                 loss = loss_fn(test_preds, y)
                 test_loss_av += loss
+                test_obo_av += off_by_one_acc_fn(test_preds.argmax(dim=1), y)
                 test_acc_av += acc_fn(test_preds.argmax(dim=1), y)
             test_loss_av /= len(test_dataloader)
             test_acc_av /= len(test_dataloader)
+            test_obo_av /= len(test_dataloader)
 
-        print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av}")
+        print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av} | Test off by one accuracy : {test_obo_av}")
 
     SAVE_PATH = Path('/home/alex/PycharmProjects/Moonboard-ML/saved_models')
     SAVE_PATH.mkdir(parents=True, exist_ok=True)

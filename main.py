@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import models
+from torchsummary import summary
 import pre_process
 from hold_embeddings import hold_quality, hold_angles
 from pathlib import Path
@@ -17,6 +18,12 @@ RANDOM_STATE = 33
 
 
 if __name__ == "__main__":
+
+    model = models.OneHotChannelCNN2(18*11, 128, 14)
+
+    print(summary(model, (18*11, 18, 11)))
+    sys.exit()
+
     HOLD_EMBEDDINGS = pre_process.create_one_hot_per_hold()
 
     df = pre_process.pull_in_data(300, True)

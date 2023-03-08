@@ -42,7 +42,7 @@ def one_epoch_test():
 
 def off_by_one_acc_fn(y_pred, y_true):
     y_off_by_one_true = torch.stack([y_true-1, y_true, y_true+1])
-    tot_true = sum(y_pred == y_off_by_one_true)
+    tot_true = torch.sum(y_pred == y_off_by_one_true)
     return tot_true.item() / len(y_pred)
 
 
@@ -63,18 +63,19 @@ if __name__ == "__main__":
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = models.OneHotChannelCNN(198, 100, len(grades))
+    model = models.OneHotChannelCNN2(198, 100, len(grades))
 
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     acc_fn = Accuracy("multiclass", num_classes=len(grades))
 
-    epochs = 3
+    epochs = 7
     for epoch in range(epochs):
         print('Epoch ', epoch, '\n')
         train_loss_av = 0
         model.train()
         for X, y in tqdm(train_dataloader):
+            model.train()
             X = X * HOLD_EMBEDDINGS  # shape (32, 198, 18, 11)
             preds = model(X)
             loss = loss_fn(preds, y)
@@ -82,6 +83,11 @@ if __name__ == "__main__":
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            model.eval()
+            with torch.inference_mode():
+                preds = model(X)
+                print(off_by_one_acc_fn(preds.argmax(dim=1), y))
+
         train_loss_av /= len(train_dataloader)
         test_loss_av = 0
         test_acc_av = 0
@@ -102,7 +108,7 @@ if __name__ == "__main__":
 
     SAVE_PATH = Path('/home/alex/PycharmProjects/Moonboard-ML/saved_models')
     SAVE_PATH.mkdir(parents=True, exist_ok=True)
-    MODEL_NAME = 'one_hot_channel_cnn'
+    MODEL_NAME = 'one_hot_channel_cnn_v2'
 
     torch.save(model.state_dict(), f=SAVE_PATH / MODEL_NAME)
 

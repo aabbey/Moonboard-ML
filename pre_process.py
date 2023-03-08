@@ -15,7 +15,7 @@ torch.manual_seed(33)
 MANUAL_HOLD_EMBEDDINGS = torch.rand(2, 18, 11)
 
 RANDOM_STATE = 33
-PROBLEMS_PATH = '/home/alex/PycharmProjects/Moonboard-ML/problems.json'
+PROBLEMS_PATH = '/home/alex/Projects/Moonboard-ML/problems.json'
 
 
 def create_one_hot_per_hold():
@@ -83,7 +83,7 @@ def create_datasets(X_train, X_test, y_train, y_test):
 
 def create_dataloaders(train_dataset, test_dataset):
     train_dataloader = DataLoader(train_dataset,
-                                  batch_size=32)
+                                  batch_size=128)
     test_dataloader = DataLoader(test_dataset,
-                                 batch_size=32)
+                                 batch_size=128)
     return train_dataloader, test_dataloader
