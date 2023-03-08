@@ -15,7 +15,7 @@ torch.manual_seed(33)
 MANUAL_HOLD_EMBEDDINGS = torch.rand(2, 18, 11)
 
 RANDOM_STATE = 33
-PROBLEMS_PATH = '/home/alex/Projects/Moonboard-ML/problems.json'
+PROBLEMS_PATH = 'problems.json'
 
 
 def create_one_hot_per_hold():

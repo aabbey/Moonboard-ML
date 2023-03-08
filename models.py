@@ -36,6 +36,34 @@ class OneChannelCNNModel(nn.Module):
         return self.classifier(x)
 
 
+class OneChannelCNNMSE(nn.Module):
+    def __init__(self, hidden):
+        super().__init__()
+
+        self.conv_block_1 = nn.Sequential(
+            nn.Conv2d(1, hidden, kernel_size=3, padding='same'),
+            nn.ReLU(),
+            nn.Conv2d(hidden, hidden, 3, padding='same'),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.conv_block_2 = nn.Sequential(
+            nn.Conv2d(hidden, hidden, kernel_size=3, padding='same'),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(hidden * 4 * 2, 1)
+        )
+
+    def forward(self, x):
+        x = self.conv_block_2(
+            self.conv_block_1(x)
+        )
+        return self.classifier(x)
+
+
 class MultiChannelCNN(nn.Module):
     def __init__(self, in_channels, hidden, out_shape):
         super().__init__()
