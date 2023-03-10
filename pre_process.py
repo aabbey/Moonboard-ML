@@ -16,6 +16,7 @@ MANUAL_HOLD_EMBEDDINGS = torch.rand(2, 18, 11)
 
 RANDOM_STATE = 33
 PROBLEMS_PATH = 'problems.json'
+MAX_BOULDER_LENGTH = 28
 
 
 def create_one_hot_per_hold():
@@ -34,7 +35,7 @@ def create_hold_embedding_vectors(hold_quality, hold_direction):
     return normalized * hold_quality
 
 
-def pull_in_data(size=59787, only_df=False):
+def pull_in_data(size=60000, only_df=False, set_encoded=False):
     with open(PROBLEMS_PATH) as p:
         d = json.load(p)  # dict of total, data
 
@@ -50,6 +51,20 @@ def pull_in_data(size=59787, only_df=False):
     grades = sorted(grades)
 
     grades_tensor = torch.tensor(data_df['grade'][:size].apply(lambda x: grades.index(x)), dtype=torch.long)
+
+    if set_encoded:
+        set_encoded_data = torch.zeros(size, MAX_BOULDER_LENGTH, 11*18+2)
+        for i, problem in enumerate(d['data'][:size]):
+            for h_num, hold in enumerate(problem['moves']):
+                x, y = hold['description'][0], hold['description'][1:]
+                x, y = ord(x.upper()) - 65, int(y) - 1
+                hold_index = x + 11 * y
+                set_encoded_data[i, h_num, hold_index] = 1.
+                if hold['isStart']:
+                    set_encoded_data[i, h_num, -1] = 1.
+                if hold['isEnd']:
+                    set_encoded_data[i, h_num, -2] = 1.
+        return set_encoded_data, grades_tensor, grades
 
     grid_encoded_data = torch.zeros(size, 1, 18, 11)
     for i, prob in enumerate(d['data'][:size]):

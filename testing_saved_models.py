@@ -18,9 +18,9 @@ RANDOM_STATE = 33
 HOLD_EMBEDDINGS = pre_process.create_one_hot_per_hold()
 
 if __name__ == "__main__":
-    grid_encoded_data, grades_tensor, grades = pre_process.pull_in_data()
+    set_encoded_data, grades_tensor, grades = pre_process.pull_in_data(set_encoded=True)
 
-    X_train, X_test, y_train, y_test = train_test_split(grid_encoded_data,
+    X_train, X_test, y_train, y_test = train_test_split(set_encoded_data,
                                                         grades_tensor,
                                                         test_size=0.2,
                                                         shuffle=True,
@@ -29,8 +29,8 @@ if __name__ == "__main__":
     train_dataset, test_dataset = pre_process.create_datasets(X_train, X_test, y_train, y_test)
     train_dataloaders, test_dataloaders = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = models.OneChannelCNNMSE(10)
-    model.load_state_dict(torch.load(SAVED_MODELS_PATH / 'one_channel_cnn_mse'))
+    model = models.DeepSet(200, len(grades))
+    model.load_state_dict(torch.load(SAVED_MODELS_PATH / 'deep_set'))
 
     loss_fn = nn.CrossEntropyLoss()
     acc_fn = Accuracy("multiclass", num_classes=len(grades))
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     with torch.inference_mode():
         for X, y in test_dataloaders:
             y_logits = model(X)
-            y_pred = torch.round(y_logits).long().squeeze()
+            y_pred = torch.argmax(y_logits, dim=1)
             y_preds.append(y_pred)
             # acc_av += acc_fn(y_pred, y)
         # acc_av /= len(test_dataloaders)
@@ -59,5 +59,5 @@ if __name__ == "__main__":
         figsize=(10, 7))
 
     FIG_SAVE_PATH = Path('figures')
-    fig.savefig(FIG_SAVE_PATH / 'one_channel_cnn_mse_conf_mat.png')
+    fig.savefig(FIG_SAVE_PATH / 'deep_set_conf_mat.png')
     plt.show()
