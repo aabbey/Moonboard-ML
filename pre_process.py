@@ -13,6 +13,7 @@ import numpy as np
 
 torch.manual_seed(33)
 MANUAL_HOLD_EMBEDDINGS = torch.rand(2, 18, 11)
+BATCH_SIZE = 128
 
 RANDOM_STATE = 33
 PROBLEMS_PATH = 'problems.json'
@@ -98,7 +99,7 @@ def create_datasets(X_train, X_test, y_train, y_test):
 
 def create_dataloaders(train_dataset, test_dataset):
     train_dataloader = DataLoader(train_dataset,
-                                  batch_size=128)
+                                  batch_size=BATCH_SIZE)
     test_dataloader = DataLoader(test_dataset,
-                                 batch_size=128)
+                                 batch_size=BATCH_SIZE)
     return train_dataloader, test_dataloader

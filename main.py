@@ -17,15 +17,17 @@ RANDOM_STATE = 33
 
 
 if __name__ == "__main__":
+    import torch
+    print(torch.cuda.is_available())
+
+    import sys
+
+    sys.exit()
+
     HOLD_EMBEDDINGS = pre_process.create_one_hot_per_hold()
 
     df = pre_process.pull_in_data(300, True)
     print(df[df['userGrade'] != df['grade']].to_string())
-
-
-
-
-    sys.exit()
 
     X_train, X_test, y_train, y_test = train_test_split(grid_encoded_data,
                                                         grades_tensor,

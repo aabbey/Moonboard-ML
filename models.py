@@ -173,15 +173,18 @@ class DeepSet(nn.Module):
 
         self.feature_mlp = nn.Sequential(
             nn.Linear(feature_in, feature_in*4),
+            nn.Dropout(0.2),
             nn.LeakyReLU(),
             nn.Linear(feature_in*4, int(feature_in/2)),
+            nn.Dropout(0.2),
             nn.LeakyReLU()
         )
 
         self.set_mlp = nn.Sequential(
-            nn.Linear(int(feature_in/2), feature_in),
+            nn.Linear(int(feature_in/2), feature_in*2),
+            nn.Dropout(0.2),
             nn.LeakyReLU(),
-            nn.Linear(feature_in, output_shape)
+            nn.Linear(feature_in*2, output_shape)
         )
 
     def forward(self, set_of_holds):

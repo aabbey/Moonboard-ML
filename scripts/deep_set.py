@@ -13,31 +13,14 @@ from hold_embeddings import hold_quality, hold_angles
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
+from torch.utils.tensorboard import SummaryWriter
+
+# Create a writer with all default settings
+WRITER = SummaryWriter()
 
 RANDOM_STATE = 33
-
-
-def one_epoch_test():
-    train_loss_av = 0
-    model.train()
-    for X, y in train_dataloader:
-        preds = model(X)
-        loss = loss_fn(preds, y)
-        train_loss_av += loss
-    train_loss_av /= len(train_dataloader)
-    test_loss_av = 0
-    test_acc_av = 0
-    model.eval()
-    with torch.inference_mode():
-        for X, y in test_dataloader:
-            test_preds = model(X)
-            loss = loss_fn(test_preds, y)
-            test_loss_av += loss
-            test_acc_av += acc_fn(test_preds.argmax(dim=1), y)
-        test_loss_av /= len(test_dataloader)
-        test_acc_av /= len(test_dataloader)
-
-    print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av}")
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+BATCH_SIZE = pre_process.BATCH_SIZE
 
 
 def off_by_one_acc_fn(y_pred, y_true):
@@ -45,6 +28,16 @@ def off_by_one_acc_fn(y_pred, y_true):
     tot_true = torch.sum(y_pred == y_off_by_one_true)
     return tot_true.item() / len(y_pred)
 
+
+def predict(model_output):
+    b = model_output[:, -1]
+    layer = torch.arange(len(grades)).unsqueeze(0).to(DEVICE)
+    y = b * layer.repeat(len(b), 1).T
+    b2 = torch.square(b)
+    i = b2 - y
+    k = 1. / (3 + torch.abs(i))
+    modified_preds = torch.softmax(model_output[:, :-1], dim=1) + k.T
+    return modified_preds.argmax(dim=1)
 
 if __name__ == "__main__":
     max_num_holds = 28
@@ -57,24 +50,35 @@ if __name__ == "__main__":
                                                         shuffle=True,
                                                         random_state=RANDOM_STATE)
 
+    X_train, X_test, y_train, y_test = X_train.to(DEVICE), X_test.to(DEVICE), y_train.to(DEVICE), y_test.to(DEVICE)
+
     train_dataset, test_dataset = pre_process.create_datasets(X_train, X_test, y_train, y_test)
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = models.DeepSet(200, len(grades))
+    model = models.DeepSet(200, len(grades)+1).to(DEVICE)
 
-    loss_fn = nn.CrossEntropyLoss()
+    cr_loss = nn.CrossEntropyLoss()
+    mse_loss = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    acc_fn = Accuracy("multiclass", num_classes=len(grades))
+    acc_fn = Accuracy("multiclass", num_classes=len(grades)).to(DEVICE)
 
-    epochs = 20
+    '''WRITER.add_graph(model=model,
+                     # Pass in an example input
+                     input_to_model=torch.randn(BATCH_SIZE, 28, 200).to(DEVICE))'''
+
+    epochs = 100
     for epoch in range(epochs):
-        print('Epoch ', epoch, '\n')
+        if epoch % 5 == 0:
+            print('Epoch ', epoch, '\n')
         train_loss_av = 0
         model.train()
-        for X, y in tqdm(train_dataloader):
+        for X, y in train_dataloader:
             preds = model(X)
-            loss = loss_fn(preds, y)
+            loss_cr = cr_loss(preds[:, :-1], y)
+            loss_mse = mse_loss(preds[:, -1], y.float())
+            loss = loss_mse * 0.2 + loss_cr * 0.8
+            #loss = loss_mse * (1-epoch/epochs) + loss_cr * (epoch/epochs)
             train_loss_av += loss
             optimizer.zero_grad()
             loss.backward()
@@ -88,16 +92,37 @@ if __name__ == "__main__":
         with torch.inference_mode():
             for X, y in test_dataloader:
                 test_preds = model(X)
-                loss = loss_fn(test_preds, y)
+                loss_cr = cr_loss(test_preds[:, :-1], y)
+                loss_mse = mse_loss(test_preds[:, -1], y.float())
+                loss = loss_mse * 0.2 + loss_cr * 0.8
                 test_loss_av += loss
-                test_acc_av += acc_fn(test_preds.argmax(dim=1), y)
-                test_obo_acc_av += off_by_one_acc_fn(test_preds.argmax(dim=1), y)
+                predictions = predict(test_preds)
+
+                test_acc_av += acc_fn(predictions, y)
+                test_obo_acc_av += off_by_one_acc_fn(predictions, y)
 
             test_loss_av /= len(test_dataloader)
             test_acc_av /= len(test_dataloader)
             test_obo_acc_av /= len(test_dataloader)
 
-        print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av} | Test obo accuracy : {test_obo_acc_av}")
+        WRITER.add_scalars(main_tag="Loss",
+                           tag_scalar_dict={"train_loss": train_loss_av,
+                                            "test_loss": test_loss_av},
+                           global_step=epoch)
+
+        # Add accuracy results to SummaryWriter
+        WRITER.add_scalars(main_tag="Accuracy",
+                           tag_scalar_dict={"test_acc": test_acc_av},
+                           global_step=epoch)
+
+        WRITER.add_scalars(main_tag="Off by one Accuracy",
+                           tag_scalar_dict={"test_obo_acc": test_obo_acc_av},
+                           global_step=epoch)
+
+        WRITER.close()
+
+        if epoch % 5 == 0:
+            print(f"Train loss : {train_loss_av} | Test loss : {test_loss_av} | Test accuracy : {test_acc_av} | Test obo accuracy : {test_obo_acc_av}")
 
     SAVE_PATH = Path('../saved_models')
     SAVE_PATH.mkdir(parents=True, exist_ok=True)
