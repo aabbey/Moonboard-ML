@@ -72,7 +72,7 @@ def pull_in_data(size=60000, only_df=False, set_encoded=False):
         for hold in prob['moves']:
             x, y = hold['description'][0], hold['description'][1:]
             x, y = ord(x.upper()) - 65, int(y) - 1
-            grid_encoded_data[i, 0, 17-y, x] = 1.  # tensor shape (59787, 1, 18, 11) num_samples by moonboard grid shape
+            grid_encoded_data[i, 0, 17-y, x] = 1.  # tensor shape (60000, 1, 18, 11) num_samples by moonboard grid shape
 
     return grid_encoded_data, grades_tensor, grades
 

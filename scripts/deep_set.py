@@ -30,6 +30,12 @@ def off_by_one_acc_fn(y_pred, y_true):
 
 
 def predict(model_output):
+    """
+    gets model prediction for using two losses.
+    the last unit in the output is a scaler for mse loss, and the other units are class predictions
+    :param model_output: (batch_size, classes+1)
+    :return: batch of int predictions, (batch_size, 1)
+    """
     b = model_output[:, -1]
     layer = torch.arange(len(grades)).unsqueeze(0).to(DEVICE)
     y = b * layer.repeat(len(b), 1).T
@@ -38,6 +44,54 @@ def predict(model_output):
     k = 1. / (3 + torch.abs(i))
     modified_preds = torch.softmax(model_output[:, :-1], dim=1) + k.T
     return modified_preds.argmax(dim=1)
+
+
+def training_loop(double_loss=False):
+    train_loss_av = 0
+    model.train()
+    for X, y in train_dataloader:
+        preds = model(X)
+        if double_loss:
+            loss_cr = cr_loss(preds[:, :-1], y)
+            loss_mse = mse_loss(preds[:, -1], y.float())
+            loss = loss_mse * 0.2 + loss_cr * 0.8
+        else:
+            loss = cr_loss(preds, y)
+        train_loss_av += loss
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+    train_loss_av /= len(train_dataloader)
+    return train_loss_av
+
+
+def testing_loop(double_loss=False):
+    test_loss_av = 0
+    test_acc_av = 0
+    test_obo_acc_av = 0
+    model.eval()
+    with torch.inference_mode():
+        for X, y in test_dataloader:
+            test_preds = model(X)
+            if double_loss:
+                loss_cr = cr_loss(test_preds[:, :-1], y)
+                loss_mse = mse_loss(test_preds[:, -1], y.float())
+                loss = loss_mse * 0.2 + loss_cr * 0.8
+            else:
+                loss = cr_loss(test_preds, y)
+            test_loss_av += loss
+            predictions = predict(test_preds) if double_loss else test_preds.argmax(dim=1)
+
+            test_acc_av += acc_fn(predictions, y)
+            test_obo_acc_av += off_by_one_acc_fn(predictions, y)
+
+        test_loss_av /= len(test_dataloader)
+        test_acc_av /= len(test_dataloader)
+        test_obo_acc_av /= len(test_dataloader)
+
+        return test_loss_av, test_acc_av, test_obo_acc_av
+
 
 if __name__ == "__main__":
     max_num_holds = 28
@@ -71,39 +125,10 @@ if __name__ == "__main__":
     for epoch in range(epochs):
         if epoch % 5 == 0:
             print('Epoch ', epoch, '\n')
-        train_loss_av = 0
-        model.train()
-        for X, y in train_dataloader:
-            preds = model(X)
-            loss_cr = cr_loss(preds[:, :-1], y)
-            loss_mse = mse_loss(preds[:, -1], y.float())
-            loss = loss_mse * 0.2 + loss_cr * 0.8
-            #loss = loss_mse * (1-epoch/epochs) + loss_cr * (epoch/epochs)
-            train_loss_av += loss
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
 
-        train_loss_av /= len(train_dataloader)
-        test_loss_av = 0
-        test_acc_av = 0
-        test_obo_acc_av = 0
-        model.eval()
-        with torch.inference_mode():
-            for X, y in test_dataloader:
-                test_preds = model(X)
-                loss_cr = cr_loss(test_preds[:, :-1], y)
-                loss_mse = mse_loss(test_preds[:, -1], y.float())
-                loss = loss_mse * 0.2 + loss_cr * 0.8
-                test_loss_av += loss
-                predictions = predict(test_preds)
+        train_loss_av = training_loop()
 
-                test_acc_av += acc_fn(predictions, y)
-                test_obo_acc_av += off_by_one_acc_fn(predictions, y)
-
-            test_loss_av /= len(test_dataloader)
-            test_acc_av /= len(test_dataloader)
-            test_obo_acc_av /= len(test_dataloader)
+        test_loss_av, test_acc_av, test_obo_acc_av = testing_loop()
 
         WRITER.add_scalars(main_tag="Loss",
                            tag_scalar_dict={"train_loss": train_loss_av,
