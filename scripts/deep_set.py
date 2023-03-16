@@ -29,6 +29,15 @@ def off_by_one_acc_fn(y_pred, y_true):
     return tot_true.item() / len(y_pred)
 
 
+def grade_to_dist(y, classes):
+    y_one_hot = torch.nn.functional.one_hot(y, classes).unsqueeze(1).float()
+    weight = torch.tensor([.2, .5, 2, .5, .2]).float().unsqueeze(0).unsqueeze(0).to(DEVICE)
+    weight2 = torch.tensor([1, 1, 1.3, 1, 1]).float().unsqueeze(0).unsqueeze(0).to(DEVICE)
+    c = torch.nn.functional.conv1d(y_one_hot, weight, padding=2)
+    c2 = torch.nn.functional.conv1d(c, weight2, padding=3)
+    return (2.5 * c2).softmax(dim=2)[:, :, 1:-1]
+
+
 def predict(model_output):
     """
     gets model prediction for using two losses.
@@ -56,7 +65,7 @@ def training_loop(double_loss=False):
             loss_mse = mse_loss(preds[:, -1], y.float())
             loss = loss_mse * 0.2 + loss_cr * 0.8
         else:
-            loss = cr_loss(preds, y)
+            loss = kl_loss(preds, y)
         train_loss_av += loss
         optimizer.zero_grad()
         loss.backward()
@@ -79,7 +88,7 @@ def testing_loop(double_loss=False):
                 loss_mse = mse_loss(test_preds[:, -1], y.float())
                 loss = loss_mse * 0.2 + loss_cr * 0.8
             else:
-                loss = cr_loss(test_preds, y)
+                loss = kl_loss(test_preds, y)
             test_loss_av += loss
             predictions = predict(test_preds) if double_loss else test_preds.argmax(dim=1)
 
@@ -106,14 +115,18 @@ if __name__ == "__main__":
 
     X_train, X_test, y_train, y_test = X_train.to(DEVICE), X_test.to(DEVICE), y_train.to(DEVICE), y_test.to(DEVICE)
 
+    # change y to work with kl div
+    y_train, y_test = grade_to_dist(y_train, len(grades)).squeeze(), grade_to_dist(y_test, len(grades)).squeeze()
+
     train_dataset, test_dataset = pre_process.create_datasets(X_train, X_test, y_train, y_test)
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = models.DeepSet(200, len(grades)+1).to(DEVICE)
+    model = models.DeepSet(200, len(grades)).to(DEVICE)
 
     cr_loss = nn.CrossEntropyLoss()
     mse_loss = nn.MSELoss()
+    kl_loss = nn.KLDivLoss(reduction='batchmean')
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     acc_fn = Accuracy("multiclass", num_classes=len(grades)).to(DEVICE)
 
@@ -151,7 +164,7 @@ if __name__ == "__main__":
 
     SAVE_PATH = Path('../saved_models')
     SAVE_PATH.mkdir(parents=True, exist_ok=True)
-    MODEL_NAME = 'deep_set'
+    MODEL_NAME = 'deep_set_kl_loss'
 
     torch.save(model.state_dict(), f=SAVE_PATH / MODEL_NAME)
 
