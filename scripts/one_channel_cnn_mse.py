@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import models
+import predictions_models
 import pre_process
 from pathlib import Path
 import matplotlib.pyplot as plt
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = models.OneChannelCNNMSE(10)
+    model = predictions_models.OneChannelCNNMSE(10)
 
     loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)

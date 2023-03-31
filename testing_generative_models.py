@@ -1,4 +1,5 @@
 import torch
+import torchvision
 from torchmetrics import Accuracy
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
@@ -20,21 +21,19 @@ RANDOM_STATE = 33
 HOLD_EMBEDDINGS = pre_process.create_one_hot_per_hold()
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 BATCH_SIZE = pre_process.BATCH_SIZE
+VAR_WEIGHT = 0.02
 
 
-def predict(model_output):
-    b = model_output[:, -1]
-    layer = torch.arange(len(grades)).unsqueeze(0).to(DEVICE)
-    y = b * layer.repeat(len(b), 1).T
-    b2 = torch.square(b)
-    i = b2 - y
-    k = 1. / (3 + torch.abs(i))
-    modified_preds = torch.softmax(model_output[:, :-1], dim=1) + k.T
-    return modified_preds.argmax(dim=1)
+def show_tensor_images(image_tensor, num_images=5, size=(1, 18, 11)):
+    image_tensor = (image_tensor + 1) / 2
+    image_unflat = image_tensor.detach().cpu()
+    image_grid = torchvision.utils.make_grid(image_unflat[:num_images], nrow=5)
+    plt.imshow(image_grid.permute(1, 2, 0).squeeze())
+    plt.show()
 
 
 if __name__ == "__main__":
-    set_encoded_data, grades_tensor, grades = pre_process.pull_in_data(set_encoded=True)
+    set_encoded_data, grades_tensor, grades = pre_process.pull_in_data()  # tensor shape (60000, 1, 18, 11)
 
     X_train, X_test, y_train, y_test = train_test_split(set_encoded_data,
                                                         grades_tensor,
@@ -47,34 +46,20 @@ if __name__ == "__main__":
     train_dataset, test_dataset = pre_process.create_datasets(X_train, X_test, y_train, y_test)
     train_dataloaders, test_dataloaders = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = generative_models.VAEConv(128, 512).to(DEVICE)
+    model = generative_models.VAEConv(64, 64).to(DEVICE)
     model.load_state_dict(torch.load(SAVED_MODELS_PATH / 'vae_conv_1'))
 
-    loss_fn = generative_models.VAELoss()
+    loss_fn = generative_models.VAELoss(recon_weight=5)
 
-    y_preds = []
     model.eval()
     with torch.inference_mode():
         for X, y in test_dataloaders:
-            y_logits = model(X)
-            y_pred = y_logits.argmax(dim=1)
-            y_preds.append(y_pred)
-            # acc_av += acc_fn(y_pred, y)
-        # acc_av /= len(test_dataloaders)
-
-    y_preds = torch.cat(y_preds)
-    # print(acc_av)
-
-    confmat = ConfusionMatrix(num_classes=len(grades), task='multiclass')
-    confmat_tensor = confmat(preds=y_preds.to('cpu'),
-                             target=y_test.to('cpu'))
-
-    # 3. Plot the confusion matrix
-    fig, ax = plot_confusion_matrix(
-        conf_mat=confmat_tensor.numpy(),  # matplotlib likes working with NumPy
-        class_names=grades,  # turn the row and column labels into class names
-        figsize=(10, 7))
-
-    FIG_SAVE_PATH = Path('figures')
-    fig.savefig(FIG_SAVE_PATH / 'deep_set_kl_loss_conf_mat.png')
-    plt.show()
+            one_hot_grades = torch.nn.functional.one_hot(y, 14)
+            encoded, z_mean, z_log_var, decoded = model(X, one_hot_grades, VAR_WEIGHT)
+            print(loss_fn(decoded, X, z_log_var, z_mean))
+            print(encoded[:5])
+            dist = torch.sqrt(torch.sum(torch.square(encoded - encoded[0]), 1))
+            mins = torch.argsort(dist)
+            print(dist)
+            print(mins)
+            show_tensor_images(torch.cat((X[:5], decoded[:5], X[mins[:5]])), num_images=15)

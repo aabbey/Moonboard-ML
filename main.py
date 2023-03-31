@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import models
+import predictions_models
 import pre_process
 from hold_embeddings import hold_quality, hold_angles
 from pathlib import Path

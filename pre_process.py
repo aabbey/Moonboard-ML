@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import models
+import predictions_models
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +16,7 @@ MANUAL_HOLD_EMBEDDINGS = torch.rand(2, 18, 11)
 BATCH_SIZE = 128
 
 RANDOM_STATE = 33
-PROBLEMS_PATH = '../problems.json'
+PROBLEMS_PATH = 'problems.json'
 MAX_BOULDER_LENGTH = 28
 
 

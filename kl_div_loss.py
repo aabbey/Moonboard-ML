@@ -3,10 +3,8 @@ from torch import nn
 
 
 class KLLoss(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self):
         super(KLLoss, self).__init__()
-        self.num_classes = num_classes
 
     def forward(self, output, target):
-        torch.
-        return loss + high_cost
+        return torch.mean(torch.sum(torch.square(torch.log(target) - output)))

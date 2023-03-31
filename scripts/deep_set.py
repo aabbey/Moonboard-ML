@@ -7,10 +7,11 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import models
+import predictions_models
 import pre_process
 from hold_embeddings import hold_quality, hold_angles
 from pathlib import Path
+from kl_div_loss import KLLoss
 import matplotlib.pyplot as plt
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
@@ -66,6 +67,7 @@ def training_loop(double_loss=False):
             loss = loss_mse * 0.2 + loss_cr * 0.8
         else:
             loss = kl_loss(preds, y)
+
         train_loss_av += loss
         optimizer.zero_grad()
         loss.backward()
@@ -92,14 +94,14 @@ def testing_loop(double_loss=False):
             test_loss_av += loss
             predictions = predict(test_preds) if double_loss else test_preds.argmax(dim=1)
 
-            test_acc_av += acc_fn(predictions, y)
-            test_obo_acc_av += off_by_one_acc_fn(predictions, y)
+            test_acc_av += acc_fn(predictions, y.argmax(dim=1))
+            test_obo_acc_av += off_by_one_acc_fn(predictions, y.argmax(dim=1))
 
         test_loss_av /= len(test_dataloader)
         test_acc_av /= len(test_dataloader)
         test_obo_acc_av /= len(test_dataloader)
 
-        return test_loss_av, test_acc_av, test_obo_acc_av
+    return test_loss_av, test_acc_av, test_obo_acc_av
 
 
 if __name__ == "__main__":
@@ -116,17 +118,19 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = X_train.to(DEVICE), X_test.to(DEVICE), y_train.to(DEVICE), y_test.to(DEVICE)
 
     # change y to work with kl div
+    print(y_test[1])
     y_train, y_test = grade_to_dist(y_train, len(grades)).squeeze(), grade_to_dist(y_test, len(grades)).squeeze()
+    print(y_test[1])
 
     train_dataset, test_dataset = pre_process.create_datasets(X_train, X_test, y_train, y_test)
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = models.DeepSet(200, len(grades)).to(DEVICE)
+    model = predictions_models.DeepSet(200, len(grades)).to(DEVICE)
 
     cr_loss = nn.CrossEntropyLoss()
     mse_loss = nn.MSELoss()
-    kl_loss = nn.KLDivLoss(reduction='batchmean')
+    kl_loss = KLLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     acc_fn = Accuracy("multiclass", num_classes=len(grades)).to(DEVICE)
 
