@@ -3,6 +3,8 @@ import sys
 import torch
 from torch import nn
 import predictions_models
+import torch.nn.init as init
+import math
 
 
 class Reshape(nn.Module):
@@ -112,6 +114,123 @@ class VAELoss(nn.Module):
         recon_loss = self.mse_loss(fake, real)
         loss = self.recon_weight * recon_loss + kl_div
         return loss
+
+
+class VAEDeepSet(nn.Module):
+    def __init__(self, feature_size, hidden_size, z_dim):
+        super(VAEDeepSet, self).__init__()
+
+        self.feature_mlp = nn.Sequential(
+            nn.Linear(feature_size, feature_size * 2),
+            nn.BatchNorm2d(feature_size * 2),
+            nn.LeakyReLU(),
+            nn.Linear(feature_size * 2, hidden_size),
+            nn.LeakyReLU()
+        )
+        self.set_mlp = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.BatchNorm2d(hidden_size),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_size, z_dim * 4)  # bottlenecks to 4 times the z_dim
+        )
+
+    def forward(self, x):
+        feature_output = self.feature_mlp(x)
+        set_agr = torch.sum(feature_output, dim=1),
+        return self.set_mlp(set_agr)
+
+
+class MultiLinear(nn.Module):
+    """
+    maps dimension (-1, k) to (-1, n, m)
+    """
+    def __init__(self, in_features, n, m, bias=True):
+        super(MultiLinear, self).__init__()
+        self.in_features = in_features
+        self.out_features = n * m
+        self.n = n
+        self.m = m
+        self.weight = nn.Parameter(torch.Tensor(self.out_features, in_features))
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(self.out_features))
+        else:
+            self.register_parameter('bias', None)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        if self.bias is not None:
+            fan_in, _ = init._calculate_fan_in_and_fan_out(self.weight)
+            bound = 1 / math.sqrt(fan_in)
+            init.uniform_(self.bias, -bound, bound)
+
+    def forward(self, input):
+        output = torch.mm(input, self.weight.t())
+        if self.bias is not None:
+            output = output + self.bias
+        output = output.view(-1, self.n, self.m)
+        return output
+
+
+class VAEInverseDeepSet(nn.Module):
+    def __init__(self, feature_size, set_size, hidden_size, z_dim):
+        super(VAEInverseDeepSet, self).__init__()
+
+        self.set_mlp = nn.Sequential(
+            nn.Linear(z_dim, hidden_size),
+            nn.BatchNorm2d(hidden_size),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_size, hidden_size)
+        )
+        self.inv_aggregate = nn.Sequential(
+            MultiLinear(hidden_size, set_size, feature_size),
+            nn.BatchNorm2d(feature_size),
+            nn.LeakyReLU()
+        )
+        self.feature_mlp = nn.Sequential(
+            nn.Linear(feature_size, feature_size),
+            nn.LeakyReLU()
+        )
+
+    def forward(self, x):
+        set_agr_output = self.set_mlp(x)
+        split_to_features = self.inv_aggregate(set_agr_output)
+        return self.feature_mlp(split_to_features)
+
+
+class DeepSetVAE(nn.Module):
+    def __init__(self, feature_size, set_size, hidden, z_dim):
+        """
+        deep set version of VAE
+        :param features_size: length of one hot embedding
+        :param z_dim: latent dimention size
+        """
+        super(DeepSetVAE, self).__init__()
+
+        self.encoder = VAEDeepSet(feature_size, hidden, z_dim)  # bottlenecks to 4 times the z_dim
+
+        self.z_mean = nn.Linear(z_dim*4, z_dim)
+        self.z_log_var = nn.Linear(z_dim*4, z_dim)
+
+        self.z_dim = z_dim
+
+        self.decoder = VAEInverseDeepSet(feature_size, set_size, hidden, z_dim)
+
+    def reparameterize(self, mean, log_var, var_weight=1.):
+        N = torch.randn(log_var.size(0), log_var.size(1), device=log_var.get_device())
+        z = mean + var_weight * torch.exp(log_var / 2.) * N
+        return z
+
+    def encoding_fn(self, x, var_weight=1.):
+        mean, log_var = self.z_mean(self.encoder(x)), self.z_log_var(self.encoder(x))
+        return self.reparameterize(mean, log_var, var_weight)
+
+    def forward(self, x, var_weight=1.):
+        encoder_last_layer = self.encoder(x)
+        mean, log_var = self.z_mean(encoder_last_layer), self.z_log_var(encoder_last_layer)
+        encoded = self.reparameterize(mean, log_var, var_weight)
+        decoded = self.decoder(encoded)
+        return encoded, mean, log_var, decoded
 
 
 class VAEConv(nn.Module):
