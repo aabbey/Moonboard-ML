@@ -19,20 +19,26 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 
 # Create a writer with all default settings
-WRITER = SummaryWriter()
+# WRITER = SummaryWriter()
 
 RANDOM_STATE = 33
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 BATCH_SIZE = pre_process.BATCH_SIZE
-VAR_WEIGHT = 0.02  # variance to add to latent var to make z
+VAR_WEIGHT = 0.05  # variance to add to latent var to make z
 
 
 def show_tensor_images(image_tensor, num_images=5, size=(1, 18, 11)):
+    if len(image_tensor.shape) == 3:
+        image_tensor = image_tensor.unsqueeze(1)
     image_tensor = (image_tensor + 1) / 2
     image_unflat = image_tensor.detach().cpu()
     image_grid = torchvision.utils.make_grid(image_unflat[:num_images], nrow=5)
     plt.imshow(image_grid.permute(1, 2, 0).squeeze())
     plt.show()
+
+
+def set_to_grid(set_encoded):
+    return torch.sum(set_encoded, dim=1).view(-1, 18, 11).flip([1])
 
 
 def training_loop(epoch):
@@ -58,6 +64,7 @@ if __name__ == "__main__":
     set_encoded_data, grades_tensor, grades = pre_process.pull_in_data(
         set_encoded=True)  # tensor shape (60000, 28, 200)
 
+
     X_train, X_test, y_train, y_test = train_test_split(set_encoded_data,
                                                         grades_tensor,
                                                         test_size=0.2,
@@ -72,8 +79,8 @@ if __name__ == "__main__":
 
     model = generative_models.DeepSetVAE(feature_size=200,
                                          set_size=max_num_holds,
-                                         hidden=128,
-                                         z_dim=32).to(DEVICE)
+                                         hidden=256,
+                                         z_dim=64).to(DEVICE)
 
     vae_loss_fn = generative_models.VAELoss(5)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -100,12 +107,14 @@ if __name__ == "__main__":
                 X, y = next(iter(train_dataloader))
                 _, _, _, decoded = model(X, VAR_WEIGHT)  # decoded shape (batch_size, 28, 200)
 
-                # TODO : make function to convert set-encoded data to tensors shaped like moonboard
+                # cut off last two features that represent start and end holds
+                decoded = set_to_grid(decoded[:, :, :-2])
+                X = set_to_grid(X[:, :, :-2])
 
                 show_tensor_images(torch.cat((X[:5], decoded[:5])), num_images=10)
 
     SAVE_PATH = Path('../saved_models')
     SAVE_PATH.mkdir(parents=True, exist_ok=True)
-    MODEL_NAME = 'vae_conv_1'
+    MODEL_NAME = 'deep_set_vae'
 
     torch.save(model.state_dict(), f=SAVE_PATH / MODEL_NAME)

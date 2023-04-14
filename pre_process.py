@@ -16,7 +16,7 @@ MANUAL_HOLD_EMBEDDINGS = torch.rand(2, 18, 11)
 BATCH_SIZE = 128
 
 RANDOM_STATE = 33
-PROBLEMS_PATH = 'problems.json'
+PROBLEMS_PATH = '../problems.json'
 MAX_BOULDER_LENGTH = 28
 
 

@@ -122,21 +122,27 @@ class VAEDeepSet(nn.Module):
 
         self.feature_mlp = nn.Sequential(
             nn.Linear(feature_size, feature_size * 2),
-            nn.BatchNorm2d(feature_size * 2),
+            nn.Dropout(),
+            nn.LeakyReLU(),
+            nn.Linear(feature_size * 2, feature_size * 2),
+            nn.Dropout(),
             nn.LeakyReLU(),
             nn.Linear(feature_size * 2, hidden_size),
             nn.LeakyReLU()
         )
         self.set_mlp = nn.Sequential(
             nn.Linear(hidden_size, hidden_size),
-            nn.BatchNorm2d(hidden_size),
+            nn.Dropout(),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.Dropout(),
             nn.LeakyReLU(),
             nn.Linear(hidden_size, z_dim * 4)  # bottlenecks to 4 times the z_dim
         )
 
     def forward(self, x):
         feature_output = self.feature_mlp(x)
-        set_agr = torch.sum(feature_output, dim=1),
+        set_agr = torch.sum(feature_output, dim=1)
         return self.set_mlp(set_agr)
 
 
@@ -178,16 +184,23 @@ class VAEInverseDeepSet(nn.Module):
 
         self.set_mlp = nn.Sequential(
             nn.Linear(z_dim, hidden_size),
-            nn.BatchNorm2d(hidden_size),
+            nn.Dropout(),
+            nn.LeakyReLU(),
+            nn.Linear(hidden_size, hidden_size),
+            nn.Dropout(),
             nn.LeakyReLU(),
             nn.Linear(hidden_size, hidden_size)
         )
         self.inv_aggregate = nn.Sequential(
             MultiLinear(hidden_size, set_size, feature_size),
-            nn.BatchNorm2d(feature_size),
+            nn.Dropout(),
             nn.LeakyReLU()
         )
         self.feature_mlp = nn.Sequential(
+            nn.Linear(feature_size, feature_size),
+            nn.LeakyReLU(),
+            nn.Linear(feature_size, feature_size),
+            nn.LeakyReLU(),
             nn.Linear(feature_size, feature_size),
             nn.LeakyReLU()
         )

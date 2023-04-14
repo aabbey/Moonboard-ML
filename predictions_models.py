@@ -192,7 +192,6 @@ class DeepSet(nn.Module):
         :param set_of_holds: (batch size, 28, 200)
         :return: output
         """
-
         features_out = self.feature_mlp(set_of_holds)
         features_output = torch.sum(features_out, dim=1)
 
