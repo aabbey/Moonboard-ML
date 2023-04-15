@@ -83,7 +83,7 @@ if __name__ == "__main__":
                                          z_dim=64).to(DEVICE)
 
     vae_loss_fn = generative_models.VAELoss(5)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
     # WRITER.add_graph(model=model, input_to_model=torch.randn(BATCH_SIZE, 1, 18, 11).to(DEVICE))
 
