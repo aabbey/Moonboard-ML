@@ -36,7 +36,7 @@ def create_hold_embedding_vectors(hold_quality, hold_direction):
     return normalized * hold_quality
 
 
-def pull_in_data(size=60000, only_df=False, set_encoded=False):
+def pull_in_data(size=60000, only_df=False, encoding='conv'):
     with open(PROBLEMS_PATH) as p:
         d = json.load(p)  # dict of total, data
 
@@ -53,7 +53,7 @@ def pull_in_data(size=60000, only_df=False, set_encoded=False):
 
     grades_tensor = torch.tensor(data_df['grade'][:size].apply(lambda x: grades.index(x)), dtype=torch.long)
 
-    if set_encoded:
+    if encoding == 'set':
         set_encoded_data = torch.zeros(size, MAX_BOULDER_LENGTH, 11*18+2)
         for i, problem in enumerate(d['data'][:size]):
             for h_num, hold in enumerate(problem['moves']):
@@ -61,6 +61,22 @@ def pull_in_data(size=60000, only_df=False, set_encoded=False):
                 x, y = ord(x.upper()) - 65, int(y) - 1
                 hold_index = x + 11 * y
                 set_encoded_data[i, h_num, hold_index] = 1.
+                if hold['isStart']:
+                    set_encoded_data[i, h_num, -1] = 1.
+                if hold['isEnd']:
+                    set_encoded_data[i, h_num, -2] = 1.
+        return set_encoded_data, grades_tensor, grades
+
+    if encoding == 'transformer':
+        encoded_data = torch.zeros(size, MAX_BOULDER_LENGTH + 2, 11 * 18 + 4)  # (6000,)
+        full_tokens_list = []  # list of tensors of all holds in order, with start, end and grade tokens
+        for i, problem in enumerate(d['data'][:size]):
+            for h_num, hold in enumerate(problem['moves']):
+                hold_tensor = torch.zeros(202)  # first is grade, then   -2 is
+                x, y = hold['description'][0], hold['description'][1:]
+                x, y = ord(x.upper()) - 65, int(y) - 1
+                hold_index = x + 11 * y
+                encoded_data[i, h_num+1, hold_index] = 1.
                 if hold['isStart']:
                     set_encoded_data[i, h_num, -1] = 1.
                 if hold['isEnd']:
