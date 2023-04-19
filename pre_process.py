@@ -1,4 +1,5 @@
 import json
+import random
 import sys
 import torch
 from torchmetrics import Accuracy
@@ -6,18 +7,25 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import predictions_models
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
 torch.manual_seed(33)
+np.random.seed(33)
 MANUAL_HOLD_EMBEDDINGS = torch.rand(2, 18, 11)
 BATCH_SIZE = 128
 
 RANDOM_STATE = 33
 PROBLEMS_PATH = '../problems.json'
 MAX_BOULDER_LENGTH = 28
+
+
+def sort_one_hot_tensors(tensor_list):
+    def indices_of_ones(tensor):
+        return tuple((tensor == 1).nonzero(as_tuple=True)[0].tolist())
+
+    return sorted(tensor_list, key=indices_of_ones)
 
 
 def create_one_hot_per_hold():
@@ -68,20 +76,33 @@ def pull_in_data(size=60000, only_df=False, encoding='conv'):
         return set_encoded_data, grades_tensor, grades
 
     if encoding == 'transformer':
-        encoded_data = torch.zeros(size, MAX_BOULDER_LENGTH + 2, 11 * 18 + 4)  # (6000,)
-        full_tokens_list = []  # list of tensors of all holds in order, with start, end and grade tokens
+        full_tokens_list_train = []  # list of tensors of all holds in order, with start, end and grade tokens
+        full_tokens_list_test = []  # list of tensors of all holds in order, with start, end and grade tokens
         for i, problem in enumerate(d['data'][:size]):
+            problem_tokens_list = []
+            hold_tensor = torch.zeros(202)
+            hold_tensor[0] = grades_tensor[i].float()
+            problem_tokens_list.append(hold_tensor)
             for h_num, hold in enumerate(problem['moves']):
-                hold_tensor = torch.zeros(202)  # first is grade, then   -2 is
+                hold_tensor = torch.zeros(202)  # first is grade, then start indicator -2 is end indicator -1 is end
                 x, y = hold['description'][0], hold['description'][1:]
                 x, y = ord(x.upper()) - 65, int(y) - 1
                 hold_index = x + 11 * y
-                encoded_data[i, h_num+1, hold_index] = 1.
+                hold_tensor[hold_index] = 1.
                 if hold['isStart']:
-                    set_encoded_data[i, h_num, -1] = 1.
+                    hold_tensor[1] = 1.
                 if hold['isEnd']:
-                    set_encoded_data[i, h_num, -2] = 1.
-        return set_encoded_data, grades_tensor, grades
+                    hold_tensor[-2] = 1.
+                problem_tokens_list.append(hold_tensor)
+            hold_tensor = torch.zeros(202)
+            hold_tensor[-1] = 1.
+            problem_tokens_list.append(hold_tensor)
+            problem_tokens_sorted = sort_one_hot_tensors(problem_tokens_list)
+            if np.random.rand() < 0.15:
+                full_tokens_list_test += problem_tokens_sorted
+            else:
+                full_tokens_list_train += problem_tokens_sorted
+        return torch.stack(full_tokens_list_train), torch.stack(full_tokens_list_test), grades_tensor, grades
 
     grid_encoded_data = torch.zeros(size, 1, 18, 11)
     for i, prob in enumerate(d['data'][:size]):
@@ -110,6 +131,24 @@ def create_datasets(X_train, X_test, y_train, y_test):
 
     train_dataset = CustomDataset(X_train, y_train)
     test_dataset = CustomDataset(X_test, y_test)
+    return train_dataset, test_dataset
+
+
+def no_label_datasets(X_train, X_test):
+
+    class CustomDataset(Dataset):
+        def __init__(self, imgs):
+            self.imgs = imgs
+
+        def __len__(self):
+            return len(self.imgs)
+
+        def __getitem__(self, idx):
+            imgs = self.imgs[idx]
+            return imgs
+
+    train_dataset = CustomDataset(X_train)
+    test_dataset = CustomDataset(X_test)
     return train_dataset, test_dataset
 
 
