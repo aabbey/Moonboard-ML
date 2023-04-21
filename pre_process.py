@@ -21,11 +21,14 @@ PROBLEMS_PATH = '../problems.json'
 MAX_BOULDER_LENGTH = 28
 
 
-def sort_one_hot_tensors(tensor_list):
-    def indices_of_ones(tensor):
-        return tuple((tensor == 1).nonzero(as_tuple=True)[0].tolist())
+def sort_one_hot_tensor(tensor):
+    def one_hot_key(row):
+        ones_indices = (row == 1).nonzero(as_tuple=True)[0].tolist()
+        return tuple(ones_indices)
 
-    return sorted(tensor_list, key=indices_of_ones)
+    sorted_indices = sorted(range(tensor.size(0)), key=lambda i: one_hot_key(tensor[i]))
+    sorted_tensor = tensor[sorted_indices]
+    return sorted_tensor
 
 
 def create_one_hot_per_hold():
@@ -44,7 +47,7 @@ def create_hold_embedding_vectors(hold_quality, hold_direction):
     return normalized * hold_quality
 
 
-def pull_in_data(size=60000, only_df=False, encoding='conv'):
+def pull_in_data(size=60000, only_df=False, encoding='conv', block_size=14):
     with open(PROBLEMS_PATH) as p:
         d = json.load(p)  # dict of total, data
 
@@ -62,7 +65,7 @@ def pull_in_data(size=60000, only_df=False, encoding='conv'):
     grades_tensor = torch.tensor(data_df['grade'][:size].apply(lambda x: grades.index(x)), dtype=torch.long)
 
     if encoding == 'set':
-        set_encoded_data = torch.zeros(size, MAX_BOULDER_LENGTH, 11*18+2)
+        set_encoded_data = torch.zeros(size, MAX_BOULDER_LENGTH, 11 * 18 + 2)
         for i, problem in enumerate(d['data'][:size]):
             for h_num, hold in enumerate(problem['moves']):
                 x, y = hold['description'][0], hold['description'][1:]
@@ -75,14 +78,14 @@ def pull_in_data(size=60000, only_df=False, encoding='conv'):
                     set_encoded_data[i, h_num, -2] = 1.
         return set_encoded_data, grades_tensor, grades
 
-    if encoding == 'transformer':
+    if encoding == 'transformer':  # encode to (size, block_size, 202)
         full_tokens_list_train = []  # list of tensors of all holds in order, with start, end and grade tokens
         full_tokens_list_test = []  # list of tensors of all holds in order, with start, end and grade tokens
         for i, problem in enumerate(d['data'][:size]):
-            problem_tokens_list = []
-            hold_tensor = torch.zeros(202)
-            hold_tensor[0] = grades_tensor[i].float()
-            problem_tokens_list.append(hold_tensor)
+            break_flag = False
+            problem_tokens = torch.zeros(block_size, 202)
+            problem_tokens[1:, -1] = torch.ones(block_size-1)
+            problem_tokens[0, 0] = grades_tensor[i].float()+1
             for h_num, hold in enumerate(problem['moves']):
                 hold_tensor = torch.zeros(202)  # first is grade, then start indicator -2 is end indicator -1 is end
                 x, y = hold['description'][0], hold['description'][1:]
@@ -93,29 +96,34 @@ def pull_in_data(size=60000, only_df=False, encoding='conv'):
                     hold_tensor[1] = 1.
                 if hold['isEnd']:
                     hold_tensor[-2] = 1.
-                problem_tokens_list.append(hold_tensor)
-            hold_tensor = torch.zeros(202)
-            hold_tensor[-1] = 1.
-            problem_tokens_list.append(hold_tensor)
-            problem_tokens_sorted = sort_one_hot_tensors(problem_tokens_list)
+                try:
+                    problem_tokens[h_num + 1] = hold_tensor
+                except IndexError:
+                    break_flag = True
+                    break
+            if break_flag:
+                continue
+            problem_tokens_sorted = sort_one_hot_tensor(problem_tokens)
+
             if np.random.rand() < 0.15:
-                full_tokens_list_test += problem_tokens_sorted
+                full_tokens_list_test.append(problem_tokens_sorted.unsqueeze(0))
             else:
-                full_tokens_list_train += problem_tokens_sorted
-        return torch.stack(full_tokens_list_train), torch.stack(full_tokens_list_test), grades_tensor, grades
+                full_tokens_list_train.append(problem_tokens_sorted.unsqueeze(0))
+
+        return torch.cat(full_tokens_list_train, dim=0), torch.cat(full_tokens_list_test, dim=0), grades_tensor, grades
 
     grid_encoded_data = torch.zeros(size, 1, 18, 11)
     for i, prob in enumerate(d['data'][:size]):
         for hold in prob['moves']:
             x, y = hold['description'][0], hold['description'][1:]
             x, y = ord(x.upper()) - 65, int(y) - 1
-            grid_encoded_data[i, 0, 17-y, x] = 1.  # tensor shape (60000, 1, 18, 11) num_samples by moonboard grid shape
+            grid_encoded_data[
+                i, 0, 17 - y, x] = 1.  # tensor shape (60000, 1, 18, 11) num_samples by moonboard grid shape
 
     return grid_encoded_data, grades_tensor, grades
 
 
 def create_datasets(X_train, X_test, y_train, y_test):
-
     class CustomDataset(Dataset):
         def __init__(self, imgs, labels):
             self.labels = labels
@@ -135,7 +143,6 @@ def create_datasets(X_train, X_test, y_train, y_test):
 
 
 def no_label_datasets(X_train, X_test):
-
     class CustomDataset(Dataset):
         def __init__(self, imgs):
             self.imgs = imgs
