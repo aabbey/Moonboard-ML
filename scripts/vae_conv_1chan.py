@@ -8,8 +8,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import generative_models
-import predictions_models
+from generative_models.vaes import VAEConv
 import pre_process
 from hold_embeddings import hold_quality, hold_angles
 from pathlib import Path
@@ -28,6 +27,7 @@ VAR_WEIGHT = 0.02  # variance to add to latent var to make z
 
 
 def show_tensor_images(image_tensor, num_images=5, size=(1, 18, 11)):
+    # image_tensor is (10, 1, 18, 11) for 10 images. (2 by 5)
     image_tensor = (image_tensor + 1) / 2
     image_unflat = image_tensor.detach().cpu()
     image_grid = torchvision.utils.make_grid(image_unflat[:num_images], nrow=5)
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = generative_models.VAEConv(64, 64).to(DEVICE)
+    model = VAEConv(64, 64).to(DEVICE)
 
     mse_loss = nn.MSELoss()
     kl_loss = nn.KLDivLoss(reduction='batchmean')

@@ -17,6 +17,52 @@ att_dropout = 0.2
 ff_dropout = 0.2
 
 
+class MyCrLoss(nn.Module):
+    def __init__(self):
+        super(MyCrLoss, self).__init__()
+        self.lsm = nn.LogSoftmax(dim=0)
+
+    def forward(self, logits, targets):
+        lsm = self.lsm(logits)
+        return - torch.sum(targets @ lsm.transpose(-2, -1))
+
+
+class Transformer(nn.Module):
+    def __init__(self, feature_size, head_size, block_size=14):
+        super(Transformer, self).__init__()
+        self.sa = TransformerHead(feature_size, head_size)
+        self.out_head = nn.Linear(head_size, feature_size)
+
+    def forward(self, x):
+        sa_out = self.sa(x)
+        logits = self.out_head(sa_out)
+        return logits
+
+
+class TransformerHead(nn.Module):
+    def __init__(self, feature_size, head_size, block_size=14):
+        super(TransformerHead, self).__init__()
+        self.key = nn.Linear(feature_size, head_size, bias=False)
+        self.query = nn.Linear(feature_size, head_size, bias=False)
+        self.value = nn.Linear(feature_size, head_size, bias=False)
+        self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
+
+    def forward(self, x):
+        B, T, C = x.shape
+        k = self.key(x)  # (B, T, C)
+        q = self.query(x)  # (B, T, C)
+        v = self.value(x)  # (B, T, C)
+        #calc attention weights
+        wei = k @ q.transpose(-2, -1)  # (B, T, T)
+        #scale
+        wei = wei * 1/(math.sqrt(C))
+        # mask to weight only tokens that came before
+        wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
+        wei = wei.softmax(dim=1)
+        out = wei @ v
+        return out
+
+
 class TransformerDecoder(nn.Module):
     """
     stacks blocks together to make the full model

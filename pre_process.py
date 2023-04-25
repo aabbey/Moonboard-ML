@@ -130,7 +130,7 @@ def create_datasets(X_train, X_test, y_train, y_test):
             self.imgs = imgs
 
         def __len__(self):
-            return len(self.labels)
+            return self.labels.size()[0]
 
         def __getitem__(self, idx):
             label = self.labels[idx]
@@ -159,9 +159,9 @@ def no_label_datasets(X_train, X_test):
     return train_dataset, test_dataset
 
 
-def create_dataloaders(train_dataset, test_dataset):
+def create_dataloaders(train_dataset, test_dataset, batch_size=BATCH_SIZE):
     train_dataloader = DataLoader(train_dataset,
-                                  batch_size=BATCH_SIZE)
+                                  batch_size=batch_size)
     test_dataloader = DataLoader(test_dataset,
-                                 batch_size=BATCH_SIZE)
+                                 batch_size=batch_size)
     return train_dataloader, test_dataloader

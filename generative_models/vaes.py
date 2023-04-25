@@ -2,9 +2,28 @@ import sys
 
 import torch
 from torch import nn
-import predictions_models
+from prediction_models import cnns, deep_set
 import torch.nn.init as init
 import math
+
+
+class Reshape(nn.Module):
+    def __init__(self, shape):
+        super(Reshape, self).__init__()
+        self.shape = shape
+
+    def forward(self, x):
+        return x.view(self.shape)
+
+
+class Trim(nn.Module):
+    def __init__(self, dim_0, dim_1):
+        super(Trim, self).__init__()
+        self.dim_0 = dim_0
+        self.dim_1 = dim_1
+
+    def forward(self, x):
+        return x[:, :, self.dim_0:, self.dim_1:]
 
 
 class VAELoss(nn.Module):

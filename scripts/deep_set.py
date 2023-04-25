@@ -7,7 +7,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import predictions_models
+from prediction_models import deep_set
 import pre_process
 from hold_embeddings import hold_quality, hold_angles
 from pathlib import Path
@@ -107,7 +107,7 @@ def testing_loop(double_loss=False):
 if __name__ == "__main__":
     max_num_holds = 28
 
-    set_encoded_data, grades_tensor, grades = pre_process.pull_in_data(set_encoded=True)  # tensor shape (60000, 28, 200)
+    set_encoded_data, grades_tensor, grades = pre_process.pull_in_data(size=100, encoding='set')  # tensor shape (60000, 28, 200)
 
     X_train, X_test, y_train, y_test = train_test_split(set_encoded_data,
                                                         grades_tensor,
@@ -122,11 +122,13 @@ if __name__ == "__main__":
     y_train, y_test = grade_to_dist(y_train, len(grades)).squeeze(), grade_to_dist(y_test, len(grades)).squeeze()
     print(y_test[1])
 
+    print(X_train.shape, y_train.shape)
+
     train_dataset, test_dataset = pre_process.create_datasets(X_train, X_test, y_train, y_test)
 
     train_dataloader, test_dataloader = pre_process.create_dataloaders(train_dataset, test_dataset)
 
-    model = predictions_models.DeepSet(200, len(grades)).to(DEVICE)
+    model = deep_set.DeepSet(200, len(grades)).to(DEVICE)
 
     cr_loss = nn.CrossEntropyLoss()
     mse_loss = nn.MSELoss()
